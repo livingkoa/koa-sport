@@ -9,6 +9,17 @@ const inter = Inter({
   variable: "--font-inter",
 })
 
+export const metadata = {
+  title: "KOA SPORT | Performance Mineral Sunscreen",
+  description: "KOA SPORT Performance Mineral Sunscreen dropping 06.25",
+  icons: {
+    icon: "/favicon.png",
+    shortcut: "/favicon.ico",
+    apple: "/favicon.png",
+  },
+    generator: 'v0.dev'
+}
+
 export default function RootLayout({
   children,
 }: {
@@ -25,7 +36,3 @@ export default function RootLayout({
     </html>
   )
 }
-
-export const metadata = {
-      generator: 'v0.dev'
-    };
