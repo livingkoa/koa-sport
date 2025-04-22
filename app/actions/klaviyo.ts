@@ -45,55 +45,40 @@ export async function subscribeToKlaviyoList(formData: FormData): Promise<Subscr
       }
     }
 
-    // Using Klaviyo's newer API (v2023-02-22)
-    const klaviyoUrl = "https://a.klaviyo.com/api/profile-subscription-bulk-create-jobs"
+    // Using the legacy API endpoint which is more reliable for simple list subscriptions
+    const url = `https://a.klaviyo.com/api/v2/list/${listId}/subscribe`
 
-    const klaviyoData = {
-      data: {
-        type: "profile-subscription-bulk-create-job",
-        attributes: {
-          profiles: {
-            data: [
-              {
-                type: "profile",
-                attributes: {
-                  email: email,
-                },
-              },
-            ],
-          },
-          list_id: listId,
-        },
-      },
+    const data = {
+      profiles: [{ email }],
+      api_key: apiKey,
     }
 
-    console.log("Sending request to Klaviyo:", klaviyoUrl)
+    console.log("Sending request to Klaviyo legacy API")
 
-    const response = await fetch(klaviyoUrl, {
+    const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Accept: "application/json",
-        Revision: "2023-02-22",
-        Authorization: `Klaviyo-API-Key ${apiKey}`,
       },
-      body: JSON.stringify(klaviyoData),
+      body: JSON.stringify(data),
+      cache: "no-store",
     })
 
     console.log("Klaviyo response status:", response.status)
 
-    let responseText
+    let responseData
     try {
-      responseText = await response.text()
-      console.log("Klaviyo response text:", responseText)
+      responseData = await response.text()
+      console.log("Klaviyo response:", responseData)
     } catch (e) {
-      console.error("Error reading response:", e)
+      console.log("Could not parse response as text:", e)
     }
 
     if (!response.ok) {
+      console.error("Klaviyo API error:", responseData)
       return {
         success: false,
-        message: "Failed to subscribe. Please check your Klaviyo API key.",
+        message: "Failed to subscribe. Please try again later.",
       }
     }
 

@@ -28,13 +28,13 @@ export default function EmailForm() {
     }
 
     setStatus("loading")
+    setMessage("")
 
     try {
-      // Create FormData and append email
       const formData = new FormData()
       formData.append("email", email)
 
-      // Call the server action directly
+      console.log("Calling server action with email:", email)
       const result = await subscribeToKlaviyoList(formData)
       console.log("Server action result:", result)
 
@@ -44,16 +44,17 @@ export default function EmailForm() {
         setEmail("")
       } else {
         setStatus("error")
-        setMessage(result.message || "Failed to subscribe")
+        setMessage(result.message)
       }
     } catch (error) {
       console.error("Error in form submission:", error)
       setStatus("error")
       setMessage("An unexpected error occurred. Please try again.")
     } finally {
-      // Ensure loading state is cleared even if there's an error
+      // Ensure we always exit loading state
       if (status === "loading") {
         setStatus("error")
+        if (!message) setMessage("No response received. Please try again.")
       }
     }
   }
@@ -62,7 +63,6 @@ export default function EmailForm() {
     <div className="w-full bg-[#777777] rounded-3xl p-2">
       <h2 className="text-[#5eff45] text-center text-sm font-light mb-2 uppercase tracking-wider">Run with us</h2>
 
-      {/* Important: Don't use action attribute here, we're handling submission in JS */}
       <form onSubmit={handleSubmit} className="space-y-2">
         <input
           type="email"
