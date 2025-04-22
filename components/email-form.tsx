@@ -8,6 +8,7 @@ export default function EmailForm() {
   const [email, setEmail] = useState("")
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle")
   const [message, setMessage] = useState("")
+  const [debugInfo, setDebugInfo] = useState<any>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -29,6 +30,7 @@ export default function EmailForm() {
 
     setStatus("loading")
     setMessage("")
+    setDebugInfo(null)
 
     try {
       const formData = new FormData()
@@ -37,6 +39,11 @@ export default function EmailForm() {
       console.log("Calling server action with email:", email)
       const result = await subscribeToKlaviyoList(formData)
       console.log("Server action result:", result)
+
+      // Store debug info if available
+      if (result.debug) {
+        setDebugInfo(result.debug)
+      }
 
       if (result.success) {
         setStatus("success")
@@ -50,12 +57,7 @@ export default function EmailForm() {
       console.error("Error in form submission:", error)
       setStatus("error")
       setMessage("An unexpected error occurred. Please try again.")
-    } finally {
-      // Ensure we always exit loading state
-      if (status === "loading") {
-        setStatus("error")
-        if (!message) setMessage("No response received. Please try again.")
-      }
+      setDebugInfo(error instanceof Error ? error.message : String(error))
     }
   }
 
@@ -89,6 +91,13 @@ export default function EmailForm() {
             aria-live="polite"
           >
             {message}
+          </div>
+        )}
+
+        {/* Debug info - only visible during development */}
+        {process.env.NODE_ENV === "development" && debugInfo && (
+          <div className="mt-4 p-2 bg-gray-800 rounded text-xs text-white overflow-auto max-h-40">
+            <pre>{JSON.stringify(debugInfo, null, 2)}</pre>
           </div>
         )}
       </form>
