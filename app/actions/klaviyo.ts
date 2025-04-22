@@ -45,16 +45,26 @@ export async function subscribeToKlaviyoList(formData: FormData): Promise<Subscr
       }
     }
 
-    // Direct integration with Klaviyo using their List API
-    const klaviyoUrl = `https://a.klaviyo.com/api/v2/list/${listId}/subscribe`
+    // Using Klaviyo's newer API (v2023-02-22)
+    const klaviyoUrl = "https://a.klaviyo.com/api/profile-subscription-bulk-create-jobs"
 
     const klaviyoData = {
-      api_key: apiKey,
-      profiles: [
-        {
-          email: email,
+      data: {
+        type: "profile-subscription-bulk-create-job",
+        attributes: {
+          profiles: {
+            data: [
+              {
+                type: "profile",
+                attributes: {
+                  email: email,
+                },
+              },
+            ],
+          },
+          list_id: listId,
         },
-      ],
+      },
     }
 
     console.log("Sending request to Klaviyo:", klaviyoUrl)
@@ -63,25 +73,27 @@ export async function subscribeToKlaviyoList(formData: FormData): Promise<Subscr
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        Accept: "application/json",
+        Revision: "2023-02-22",
+        Authorization: `Klaviyo-API-Key ${apiKey}`,
       },
       body: JSON.stringify(klaviyoData),
     })
 
     console.log("Klaviyo response status:", response.status)
 
-    let responseData
+    let responseText
     try {
-      responseData = await response.json()
-      console.log("Klaviyo response data:", responseData)
+      responseText = await response.text()
+      console.log("Klaviyo response text:", responseText)
     } catch (e) {
-      const text = await response.text()
-      console.log("Klaviyo response text:", text)
+      console.error("Error reading response:", e)
     }
 
     if (!response.ok) {
       return {
         success: false,
-        message: "Failed to subscribe. Please try again later.",
+        message: "Failed to subscribe. Please check your Klaviyo API key.",
       }
     }
 
