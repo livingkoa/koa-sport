@@ -8,7 +8,6 @@ export default function EmailForm() {
   const [email, setEmail] = useState("")
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle")
   const [message, setMessage] = useState("")
-  const [debugInfo, setDebugInfo] = useState<any>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -29,7 +28,6 @@ export default function EmailForm() {
     }
 
     setStatus("loading")
-    setDebugInfo(null)
 
     try {
       console.log("Creating FormData")
@@ -39,11 +37,6 @@ export default function EmailForm() {
       console.log("Calling server action")
       const result = await subscribeToKlaviyoList(formData)
       console.log("Server action result:", result)
-
-      // Store debug info for development
-      if (process.env.NODE_ENV === "development") {
-        setDebugInfo(result)
-      }
 
       if (result.success) {
         setStatus("success")
@@ -86,13 +79,6 @@ export default function EmailForm() {
         {message && (
           <div className={`text-center text-sm mt-2 ${status === "success" ? "text-[#5eff45]" : "text-red-400"}`}>
             {message}
-          </div>
-        )}
-
-        {/* Debug info - only shown in development */}
-        {process.env.NODE_ENV === "development" && debugInfo && (
-          <div className="mt-4 p-2 bg-gray-800 rounded text-xs overflow-auto max-h-40">
-            <pre>{JSON.stringify(debugInfo, null, 2)}</pre>
           </div>
         )}
       </form>
