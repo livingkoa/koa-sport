@@ -10,6 +10,7 @@ const EmailSchema = z.object({
 type SubscribeResult = {
   success: boolean
   message: string
+  debug?: any
 }
 
 export async function subscribeToKlaviyoList(formData: FormData): Promise<SubscribeResult> {
@@ -44,6 +45,7 @@ export async function subscribeToKlaviyoList(formData: FormData): Promise<Subscr
       return {
         success: false,
         message: "Server configuration error",
+        debug: { missingApiKey: !apiKey, missingListId: !listId },
       }
     }
 
@@ -56,37 +58,54 @@ export async function subscribeToKlaviyoList(formData: FormData): Promise<Subscr
     }
 
     console.log("Sending request to Klaviyo:", url)
+    console.log("Request data:", JSON.stringify(data, null, 2))
 
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(data),
-    })
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+      })
 
-    console.log("Klaviyo response status:", response.status)
+      console.log("Klaviyo response status:", response.status)
+      console.log("Klaviyo response headers:", Object.fromEntries([...response.headers.entries()]))
 
-    const responseText = await response.text()
-    console.log("Klaviyo response body:", responseText)
+      const responseText = await response.text()
+      console.log("Klaviyo response body:", responseText)
 
-    if (!response.ok) {
-      console.error("Klaviyo API error:", responseText)
+      if (!response.ok) {
+        console.error("Klaviyo API error:", responseText)
+        return {
+          success: false,
+          message: "Failed to subscribe. Please try again later.",
+          debug: {
+            status: response.status,
+            responseText,
+            requestData: data,
+          },
+        }
+      }
+
+      return {
+        success: true,
+        message: "Thank you for subscribing!",
+      }
+    } catch (fetchError) {
+      console.error("Fetch error:", fetchError)
       return {
         success: false,
-        message: "Failed to subscribe. Please try again later.",
+        message: "Network error when contacting Klaviyo.",
+        debug: { error: fetchError.toString() },
       }
-    }
-
-    return {
-      success: true,
-      message: "Thank you for subscribing!",
     }
   } catch (error) {
     console.error("Error subscribing to Klaviyo:", error)
     return {
       success: false,
       message: "An unexpected error occurred. Please try again later.",
+      debug: { error: error.toString() },
     }
   }
 }
