@@ -13,12 +13,15 @@ type SubscribeResult = {
 }
 
 export async function subscribeToKlaviyoList(formData: FormData): Promise<SubscribeResult> {
+  console.log("Server action called with email:", formData.get("email"))
+
   try {
     // Extract and validate email
     const email = formData.get("email") as string
     const validationResult = EmailSchema.safeParse({ email })
 
     if (!validationResult.success) {
+      console.log("Email validation failed:", validationResult.error.errors)
       return {
         success: false,
         message: "Please enter a valid email address",
@@ -29,6 +32,11 @@ export async function subscribeToKlaviyoList(formData: FormData): Promise<Subscr
     const apiKey = process.env.KLAVIYO_API_KEY
     const listId = process.env.KLAVIYO_LIST_ID
 
+    console.log("Environment variables check:", {
+      hasApiKey: !!apiKey,
+      hasListId: !!listId,
+    })
+
     if (!apiKey || !listId) {
       console.error("Missing Klaviyo API key or list ID")
       return {
@@ -37,8 +45,11 @@ export async function subscribeToKlaviyoList(formData: FormData): Promise<Subscr
       }
     }
 
-    // Prepare data for Klaviyo
-    const data = {
+    // Direct integration with Klaviyo using their List API
+    const klaviyoUrl = `https://a.klaviyo.com/api/v2/list/${listId}/subscribe`
+
+    const klaviyoData = {
+      api_key: apiKey,
       profiles: [
         {
           email: email,
@@ -46,36 +57,28 @@ export async function subscribeToKlaviyoList(formData: FormData): Promise<Subscr
       ],
     }
 
-    // Make request to Klaviyo API
-    const response = await fetch(`https://a.klaviyo.com/api/profile-subscription-bulk-create-jobs`, {
+    console.log("Sending request to Klaviyo:", klaviyoUrl)
+
+    const response = await fetch(klaviyoUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Accept: "application/json",
-        Revision: "2023-02-22",
-        Authorization: `Klaviyo-API-Key ${apiKey}`,
       },
-      body: JSON.stringify({
-        data: {
-          type: "profile-subscription-bulk-create-job",
-          attributes: {
-            profiles: {
-              data: data.profiles.map((profile) => ({
-                type: "profile",
-                attributes: {
-                  email: profile.email,
-                },
-              })),
-            },
-            list_id: listId,
-          },
-        },
-      }),
+      body: JSON.stringify(klaviyoData),
     })
 
+    console.log("Klaviyo response status:", response.status)
+
+    let responseData
+    try {
+      responseData = await response.json()
+      console.log("Klaviyo response data:", responseData)
+    } catch (e) {
+      const text = await response.text()
+      console.log("Klaviyo response text:", text)
+    }
+
     if (!response.ok) {
-      const errorData = await response.json()
-      console.error("Klaviyo API error:", errorData)
       return {
         success: false,
         message: "Failed to subscribe. Please try again later.",
