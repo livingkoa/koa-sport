@@ -22,7 +22,12 @@ export async function GET() {
 
       let responseData = null
       try {
-        responseData = await response.json()
+        const responseText = await response.text()
+        if (responseText) {
+          responseData = JSON.parse(responseText)
+        } else {
+          responseData = { note: "Empty response" }
+        }
       } catch (e) {
         const responseText = await response.text()
         responseData = { error: "Could not parse response as JSON", text: responseText }

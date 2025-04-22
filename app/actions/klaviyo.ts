@@ -50,25 +50,18 @@ export async function subscribeToKlaviyoList(formData: FormData): Promise<Subscr
     }
 
     // Using Klaviyo's current API (v2023-10-15)
-    const url = `https://a.klaviyo.com/api/profile-subscription-bulk-create-jobs`
+    // First, let's try the simpler approach - directly subscribing a profile to a list
+    const url = `https://a.klaviyo.com/api/lists/${listId}/relationships/profiles/`
 
     const data = {
-      data: {
-        type: "profile-subscription-bulk-create-job",
-        attributes: {
-          profiles: {
-            data: [
-              {
-                type: "profile",
-                attributes: {
-                  email: email,
-                },
-              },
-            ],
+      data: [
+        {
+          type: "profile",
+          attributes: {
+            email: email,
           },
-          list_id: listId,
         },
-      },
+      ],
     }
 
     console.log("Sending request to Klaviyo:", url)
@@ -94,7 +87,9 @@ export async function subscribeToKlaviyoList(formData: FormData): Promise<Subscr
 
       let responseData = null
       try {
-        responseData = JSON.parse(responseText)
+        if (responseText) {
+          responseData = JSON.parse(responseText)
+        }
       } catch (e) {
         // If it's not valid JSON, keep the text as is
       }
