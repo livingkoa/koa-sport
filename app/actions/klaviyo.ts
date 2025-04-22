@@ -49,12 +49,26 @@ export async function subscribeToKlaviyoList(formData: FormData): Promise<Subscr
       }
     }
 
-    // Use the simpler Klaviyo List API for more reliable integration
-    const url = `https://a.klaviyo.com/api/v2/list/${listId}/subscribe`
+    // Using Klaviyo's current API (v2023-10-15)
+    const url = `https://a.klaviyo.com/api/profile-subscription-bulk-create-jobs`
 
     const data = {
-      profiles: [{ email }],
-      api_key: apiKey,
+      data: {
+        type: "profile-subscription-bulk-create-job",
+        attributes: {
+          profiles: {
+            data: [
+              {
+                type: "profile",
+                attributes: {
+                  email: email,
+                },
+              },
+            ],
+          },
+          list_id: listId,
+        },
+      },
     }
 
     console.log("Sending request to Klaviyo:", url)
@@ -65,6 +79,9 @@ export async function subscribeToKlaviyoList(formData: FormData): Promise<Subscr
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Accept: "application/json",
+          Revision: "2023-10-15", // Current API version
+          Authorization: `Klaviyo-API-Key ${apiKey}`,
         },
         body: JSON.stringify(data),
       })
@@ -75,6 +92,13 @@ export async function subscribeToKlaviyoList(formData: FormData): Promise<Subscr
       const responseText = await response.text()
       console.log("Klaviyo response body:", responseText)
 
+      let responseData = null
+      try {
+        responseData = JSON.parse(responseText)
+      } catch (e) {
+        // If it's not valid JSON, keep the text as is
+      }
+
       if (!response.ok) {
         console.error("Klaviyo API error:", responseText)
         return {
@@ -83,6 +107,7 @@ export async function subscribeToKlaviyoList(formData: FormData): Promise<Subscr
           debug: {
             status: response.status,
             responseText,
+            responseData,
             requestData: data,
           },
         }

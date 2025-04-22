@@ -9,15 +9,23 @@ export async function GET() {
 
   if (apiKey && listId) {
     try {
-      // Try to get list info as a test
-      const response = await fetch(`https://a.klaviyo.com/api/v2/list/${listId}?api_key=${apiKey}`)
+      // Try to get list info using the current API version
+      const response = await fetch(`https://a.klaviyo.com/api/lists/${listId}`, {
+        headers: {
+          Accept: "application/json",
+          Revision: "2023-10-15",
+          Authorization: `Klaviyo-API-Key ${apiKey}`,
+        },
+      })
+
       const status = response.status
 
       let responseData = null
       try {
         responseData = await response.json()
       } catch (e) {
-        responseData = { error: "Could not parse response as JSON" }
+        const responseText = await response.text()
+        responseData = { error: "Could not parse response as JSON", text: responseText }
       }
 
       apiTest = {
