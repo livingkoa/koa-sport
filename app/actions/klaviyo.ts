@@ -45,22 +45,40 @@ export async function subscribeToKlaviyoList(formData: FormData): Promise<Subscr
       }
     }
 
-    // Using the legacy API endpoint which is more reliable for simple list subscriptions
-    const url = `https://a.klaviyo.com/api/v2/list/${listId}/subscribe`
+    // Using the current Klaviyo API (2023-02-22)
+    const url = "https://a.klaviyo.com/api/profile-subscription-bulk-create-jobs"
 
-    const data = {
-      profiles: [{ email }],
-      api_key: apiKey,
+    // Prepare the request body according to the new API format
+    const requestBody = {
+      data: {
+        type: "profile-subscription-bulk-create-job",
+        attributes: {
+          profiles: {
+            data: [
+              {
+                type: "profile",
+                attributes: {
+                  email: email,
+                },
+              },
+            ],
+          },
+          list_id: listId,
+        },
+      },
     }
 
-    console.log("Sending request to Klaviyo legacy API")
+    console.log("Sending request to Klaviyo API v2023-02-22")
 
     const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        Accept: "application/json",
+        Revision: "2023-02-22",
+        Authorization: `Klaviyo-API-Key ${apiKey}`,
       },
-      body: JSON.stringify(data),
+      body: JSON.stringify(requestBody),
       cache: "no-store",
     })
 

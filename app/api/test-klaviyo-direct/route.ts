@@ -15,9 +15,14 @@ export async function GET(request: Request) {
       )
     }
 
-    // Test the Klaviyo API directly
-    const response = await fetch(`https://a.klaviyo.com/api/v2/list/${listId}?api_key=${apiKey}`, {
+    // Test the Klaviyo API directly using the current API version
+    const response = await fetch(`https://a.klaviyo.com/api/lists/${listId}`, {
       method: "GET",
+      headers: {
+        Accept: "application/json",
+        Revision: "2023-02-22",
+        Authorization: `Klaviyo-API-Key ${apiKey}`,
+      },
       cache: "no-store",
     })
 
@@ -37,9 +42,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       success: true,
-      listName: data.list_name,
-      listId: data.list_id,
-      created: data.created,
+      listData: data,
     })
   } catch (error) {
     console.error("Error testing Klaviyo connection:", error)
