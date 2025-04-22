@@ -49,61 +49,123 @@ export async function subscribeToKlaviyoList(formData: FormData): Promise<Subscr
       }
     }
 
-    // Using Klaviyo's current API (v2023-10-15)
-    // First, let's try the simpler approach - directly subscribing a profile to a list
-    const url = `https://a.klaviyo.com/api/lists/${listId}/relationships/profiles/`
+    // First, create or update the profile
+    const createProfileUrl = "https://a.klaviyo.com/api/profiles/"
 
-    const data = {
-      data: [
-        {
-          type: "profile",
-          attributes: {
-            email: email,
-          },
+    const profileData = {
+      data: {
+        type: "profile",
+        attributes: {
+          email: email,
         },
-      ],
+      },
     }
 
-    console.log("Sending request to Klaviyo:", url)
-    console.log("Request data:", JSON.stringify(data, null, 2))
+    console.log("Creating/updating profile in Klaviyo:", createProfileUrl)
+    console.log("Profile data:", JSON.stringify(profileData, null, 2))
 
     try {
-      const response = await fetch(url, {
+      // Step 1: Create or update the profile
+      const profileResponse = await fetch(createProfileUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Accept: "application/json",
-          Revision: "2023-10-15", // Current API version
+          Revision: "2023-10-15",
           Authorization: `Klaviyo-API-Key ${apiKey}`,
         },
-        body: JSON.stringify(data),
+        body: JSON.stringify(profileData),
       })
 
-      console.log("Klaviyo response status:", response.status)
-      console.log("Klaviyo response headers:", Object.fromEntries([...response.headers.entries()]))
+      console.log("Profile response status:", profileResponse.status)
 
-      const responseText = await response.text()
-      console.log("Klaviyo response body:", responseText)
+      const profileResponseText = await profileResponse.text()
+      console.log("Profile response body:", profileResponseText)
 
-      let responseData = null
+      let profileResponseData = null
+      let profileId = null
+
       try {
-        if (responseText) {
-          responseData = JSON.parse(responseText)
+        if (profileResponseText) {
+          profileResponseData = JSON.parse(profileResponseText)
+          profileId = profileResponseData?.data?.id
         }
       } catch (e) {
-        // If it's not valid JSON, keep the text as is
+        console.error("Error parsing profile response:", e)
       }
 
-      if (!response.ok) {
-        console.error("Klaviyo API error:", responseText)
+      if (!profileResponse.ok) {
+        return {
+          success: false,
+          message: "Failed to create subscriber profile. Please try again later.",
+          debug: {
+            status: profileResponse.status,
+            responseText: profileResponseText,
+            responseData: profileResponseData,
+            requestData: profileData,
+          },
+        }
+      }
+
+      if (!profileId) {
+        return {
+          success: false,
+          message: "Failed to get profile ID. Please try again later.",
+          debug: {
+            profileResponseData,
+          },
+        }
+      }
+
+      // Step 2: Subscribe the profile to the list
+      const subscribeUrl = `https://a.klaviyo.com/api/lists/${listId}/relationships/profiles/`
+
+      const subscribeData = {
+        data: [
+          {
+            type: "profile",
+            id: profileId,
+          },
+        ],
+      }
+
+      console.log("Subscribing profile to list:", subscribeUrl)
+      console.log("Subscribe data:", JSON.stringify(subscribeData, null, 2))
+
+      const subscribeResponse = await fetch(subscribeUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          Revision: "2023-10-15",
+          Authorization: `Klaviyo-API-Key ${apiKey}`,
+        },
+        body: JSON.stringify(subscribeData),
+      })
+
+      console.log("Subscribe response status:", subscribeResponse.status)
+
+      const subscribeResponseText = await subscribeResponse.text()
+      console.log("Subscribe response body:", subscribeResponseText)
+
+      let subscribeResponseData = null
+      try {
+        if (subscribeResponseText) {
+          subscribeResponseData = JSON.parse(subscribeResponseText)
+        }
+      } catch (e) {
+        console.error("Error parsing subscribe response:", e)
+      }
+
+      if (!subscribeResponse.ok) {
         return {
           success: false,
           message: "Failed to subscribe. Please try again later.",
           debug: {
-            status: response.status,
-            responseText,
-            responseData,
-            requestData: data,
+            status: subscribeResponse.status,
+            responseText: subscribeResponseText,
+            responseData: subscribeResponseData,
+            requestData: subscribeData,
           },
         }
       }
