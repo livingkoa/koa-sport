@@ -24,8 +24,8 @@ export default function EmailForm() {
       const result = await subscribeToKlaviyoList(new FormData(e.target as HTMLFormElement))
 
       if (result.success) {
-        setEmail("")
         setMessage({ text: result.message, type: "success" })
+        setEmail("")
       } else {
         setMessage({ text: result.message, type: "error" })
       }

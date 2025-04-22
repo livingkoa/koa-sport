@@ -2,7 +2,8 @@
 
 import { z } from "zod"
 
-const emailSchema = z.object({
+// Email validation schema
+const EmailSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
 })
 
@@ -13,28 +14,31 @@ type SubscribeResult = {
 
 export async function subscribeToKlaviyoList(formData: FormData): Promise<SubscribeResult> {
   try {
-    // Validate email
+    // Extract and validate email
     const email = formData.get("email") as string
-    const validatedFields = emailSchema.safeParse({ email })
+    const validationResult = EmailSchema.safeParse({ email })
 
-    if (!validatedFields.success) {
+    if (!validationResult.success) {
       return {
         success: false,
         message: "Please enter a valid email address",
       }
     }
 
-    // Check for required environment variables
-    if (!process.env.KLAVIYO_API_KEY || !process.env.KLAVIYO_LIST_ID) {
-      console.error("Missing Klaviyo environment variables")
+    // Get environment variables
+    const apiKey = process.env.KLAVIYO_API_KEY
+    const listId = process.env.KLAVIYO_LIST_ID
+
+    if (!apiKey || !listId) {
+      console.error("Missing Klaviyo API key or list ID")
       return {
         success: false,
         message: "Server configuration error",
       }
     }
 
-    // Prepare the request to Klaviyo
-    const klaviyoData = {
+    // Prepare data for Klaviyo
+    const data = {
       profiles: [
         {
           email: email,
@@ -42,30 +46,36 @@ export async function subscribeToKlaviyoList(formData: FormData): Promise<Subscr
       ],
     }
 
-    // Make the request to Klaviyo API
-    const response = await fetch(`https://a.klaviyo.com/api/lists/${process.env.KLAVIYO_LIST_ID}/profiles/`, {
+    // Make request to Klaviyo API
+    const response = await fetch(`https://a.klaviyo.com/api/profile-subscription-bulk-create-jobs`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json",
-        revision: "2023-02-22",
-        Authorization: `Klaviyo-API-Key ${process.env.KLAVIYO_API_KEY}`,
+        Revision: "2023-02-22",
+        Authorization: `Klaviyo-API-Key ${apiKey}`,
       },
-      body: JSON.stringify(klaviyoData),
+      body: JSON.stringify({
+        data: {
+          type: "profile-subscription-bulk-create-job",
+          attributes: {
+            profiles: {
+              data: data.profiles.map((profile) => ({
+                type: "profile",
+                attributes: {
+                  email: profile.email,
+                },
+              })),
+            },
+            list_id: listId,
+          },
+        },
+      }),
     })
 
     if (!response.ok) {
       const errorData = await response.json()
       console.error("Klaviyo API error:", errorData)
-
-      // Check if the error is because the email already exists
-      if (response.status === 409) {
-        return {
-          success: true, // Still return success to the user
-          message: "You're already subscribed! We'll keep you updated.",
-        }
-      }
-
       return {
         success: false,
         message: "Failed to subscribe. Please try again later.",
@@ -74,7 +84,7 @@ export async function subscribeToKlaviyoList(formData: FormData): Promise<Subscr
 
     return {
       success: true,
-      message: "Thanks for subscribing! We'll keep you updated.",
+      message: "Thank you for subscribing!",
     }
   } catch (error) {
     console.error("Error subscribing to Klaviyo:", error)
