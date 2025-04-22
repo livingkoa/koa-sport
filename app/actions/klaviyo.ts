@@ -49,124 +49,24 @@ export async function subscribeToKlaviyoList(formData: FormData): Promise<Subscr
       }
     }
 
-    // First, create or update the profile
-    const createProfileUrl = "https://a.klaviyo.com/api/profiles/"
-
-    const profileData = {
-      data: {
-        type: "profile",
-        attributes: {
-          email: email,
-        },
-      },
-    }
-
-    console.log("Creating/updating profile in Klaviyo:", createProfileUrl)
-    console.log("Profile data:", JSON.stringify(profileData, null, 2))
-
     try {
-      // Step 1: Create or update the profile
-      const profileResponse = await fetch(createProfileUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-          Revision: "2023-10-15",
-          Authorization: `Klaviyo-API-Key ${apiKey}`,
-        },
-        body: JSON.stringify(profileData),
-      })
-
-      console.log("Profile response status:", profileResponse.status)
-
-      const profileResponseText = await profileResponse.text()
-      console.log("Profile response body:", profileResponseText)
-
-      let profileResponseData = null
-      let profileId = null
-
-      try {
-        if (profileResponseText) {
-          profileResponseData = JSON.parse(profileResponseText)
-          profileId = profileResponseData?.data?.id
-        }
-      } catch (e) {
-        console.error("Error parsing profile response:", e)
-      }
-
-      if (!profileResponse.ok) {
-        return {
-          success: false,
-          message: "Failed to create subscriber profile. Please try again later.",
-          debug: {
-            status: profileResponse.status,
-            responseText: profileResponseText,
-            responseData: profileResponseData,
-            requestData: profileData,
-          },
-        }
-      }
+      // Step 1: Get or create profile
+      const profileId = await getOrCreateProfile(email, apiKey)
 
       if (!profileId) {
         return {
           success: false,
-          message: "Failed to get profile ID. Please try again later.",
-          debug: {
-            profileResponseData,
-          },
+          message: "Failed to find or create profile. Please try again later.",
         }
       }
 
       // Step 2: Subscribe the profile to the list
-      const subscribeUrl = `https://a.klaviyo.com/api/lists/${listId}/relationships/profiles/`
+      const subscribeSuccess = await subscribeProfileToList(profileId, listId, apiKey)
 
-      const subscribeData = {
-        data: [
-          {
-            type: "profile",
-            id: profileId,
-          },
-        ],
-      }
-
-      console.log("Subscribing profile to list:", subscribeUrl)
-      console.log("Subscribe data:", JSON.stringify(subscribeData, null, 2))
-
-      const subscribeResponse = await fetch(subscribeUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-          Revision: "2023-10-15",
-          Authorization: `Klaviyo-API-Key ${apiKey}`,
-        },
-        body: JSON.stringify(subscribeData),
-      })
-
-      console.log("Subscribe response status:", subscribeResponse.status)
-
-      const subscribeResponseText = await subscribeResponse.text()
-      console.log("Subscribe response body:", subscribeResponseText)
-
-      let subscribeResponseData = null
-      try {
-        if (subscribeResponseText) {
-          subscribeResponseData = JSON.parse(subscribeResponseText)
-        }
-      } catch (e) {
-        console.error("Error parsing subscribe response:", e)
-      }
-
-      if (!subscribeResponse.ok) {
+      if (!subscribeSuccess) {
         return {
           success: false,
-          message: "Failed to subscribe. Please try again later.",
-          debug: {
-            status: subscribeResponse.status,
-            responseText: subscribeResponseText,
-            responseData: subscribeResponseData,
-            requestData: subscribeData,
-          },
+          message: "Failed to add to subscription list. Please try again later.",
         }
       }
 
@@ -189,5 +89,146 @@ export async function subscribeToKlaviyoList(formData: FormData): Promise<Subscr
       message: "An unexpected error occurred. Please try again later.",
       debug: { error: error.toString() },
     }
+  }
+}
+
+// Helper function to get a profile by email or create if it doesn't exist
+async function getOrCreateProfile(email: string, apiKey: string): Promise<string | null> {
+  try {
+    // First try to get the profile by email
+    const searchUrl = `https://a.klaviyo.com/api/profiles/?filter=equals(email,"${encodeURIComponent(email)}")`
+
+    console.log("Searching for existing profile:", searchUrl)
+
+    const searchResponse = await fetch(searchUrl, {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+        Revision: "2023-10-15",
+        Authorization: `Klaviyo-API-Key ${apiKey}`,
+      },
+    })
+
+    console.log("Search response status:", searchResponse.status)
+
+    if (searchResponse.ok) {
+      const searchData = await searchResponse.json()
+      console.log("Search response data:", JSON.stringify(searchData, null, 2))
+
+      // If profile exists, return its ID
+      if (searchData.data && searchData.data.length > 0) {
+        console.log("Found existing profile with ID:", searchData.data[0].id)
+        return searchData.data[0].id
+      }
+    }
+
+    // If profile doesn't exist or search failed, create a new one
+    console.log("Profile not found, creating new profile")
+
+    const createProfileUrl = "https://a.klaviyo.com/api/profiles/"
+
+    const profileData = {
+      data: {
+        type: "profile",
+        attributes: {
+          email: email,
+        },
+      },
+    }
+
+    const profileResponse = await fetch(createProfileUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        Revision: "2023-10-15",
+        Authorization: `Klaviyo-API-Key ${apiKey}`,
+      },
+      body: JSON.stringify(profileData),
+    })
+
+    console.log("Create profile response status:", profileResponse.status)
+
+    if (profileResponse.ok) {
+      const profileResponseData = await profileResponse.json()
+      console.log("Created new profile with ID:", profileResponseData.data.id)
+      return profileResponseData.data.id
+    } else {
+      const errorText = await profileResponse.text()
+      console.error("Failed to create profile:", errorText)
+
+      // If it's a duplicate profile error, try to search again
+      // This can happen if there's a race condition or if the profile was created between our search and create
+      if (profileResponse.status === 409) {
+        console.log("Duplicate profile detected, searching again")
+
+        const retrySearchResponse = await fetch(searchUrl, {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+            Revision: "2023-10-15",
+            Authorization: `Klaviyo-API-Key ${apiKey}`,
+          },
+        })
+
+        if (retrySearchResponse.ok) {
+          const retrySearchData = await retrySearchResponse.json()
+
+          if (retrySearchData.data && retrySearchData.data.length > 0) {
+            console.log("Found profile on retry with ID:", retrySearchData.data[0].id)
+            return retrySearchData.data[0].id
+          }
+        }
+      }
+
+      return null
+    }
+  } catch (error) {
+    console.error("Error in getOrCreateProfile:", error)
+    return null
+  }
+}
+
+// Helper function to subscribe a profile to a list
+async function subscribeProfileToList(profileId: string, listId: string, apiKey: string): Promise<boolean> {
+  try {
+    const subscribeUrl = `https://a.klaviyo.com/api/lists/${listId}/relationships/profiles/`
+
+    const subscribeData = {
+      data: [
+        {
+          type: "profile",
+          id: profileId,
+        },
+      ],
+    }
+
+    console.log("Subscribing profile to list:", subscribeUrl)
+    console.log("Subscribe data:", JSON.stringify(subscribeData, null, 2))
+
+    const subscribeResponse = await fetch(subscribeUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        Revision: "2023-10-15",
+        Authorization: `Klaviyo-API-Key ${apiKey}`,
+      },
+      body: JSON.stringify(subscribeData),
+    })
+
+    console.log("Subscribe response status:", subscribeResponse.status)
+
+    // For subscription, a 204 No Content is often returned on success
+    if (subscribeResponse.ok) {
+      return true
+    } else {
+      const errorText = await subscribeResponse.text()
+      console.error("Failed to subscribe profile to list:", errorText)
+      return false
+    }
+  } catch (error) {
+    console.error("Error in subscribeProfileToList:", error)
+    return false
   }
 }
