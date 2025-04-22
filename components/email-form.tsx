@@ -29,20 +29,20 @@ export default function EmailForm() {
     }
 
     setStatus("loading")
-    setMessage("")
     setDebugInfo(null)
 
     try {
+      console.log("Creating FormData")
       const formData = new FormData()
       formData.append("email", email)
 
-      console.log("Calling server action with email:", email)
+      console.log("Calling server action")
       const result = await subscribeToKlaviyoList(formData)
       console.log("Server action result:", result)
 
-      // Store debug info if available
-      if (result.debug) {
-        setDebugInfo(result.debug)
+      // Store debug info for development
+      if (process.env.NODE_ENV === "development") {
+        setDebugInfo(result)
       }
 
       if (result.success) {
@@ -57,7 +57,6 @@ export default function EmailForm() {
       console.error("Error in form submission:", error)
       setStatus("error")
       setMessage("An unexpected error occurred. Please try again.")
-      setDebugInfo(error instanceof Error ? error.message : String(error))
     }
   }
 
@@ -85,18 +84,14 @@ export default function EmailForm() {
         </button>
 
         {message && (
-          <div
-            className={`text-center text-sm mt-2 ${status === "success" ? "text-[#5eff45]" : "text-red-400"}`}
-            role="status"
-            aria-live="polite"
-          >
+          <div className={`text-center text-sm mt-2 ${status === "success" ? "text-[#5eff45]" : "text-red-400"}`}>
             {message}
           </div>
         )}
 
-        {/* Debug info - only visible during development */}
+        {/* Debug info - only shown in development */}
         {process.env.NODE_ENV === "development" && debugInfo && (
-          <div className="mt-4 p-2 bg-gray-800 rounded text-xs text-white overflow-auto max-h-40">
+          <div className="mt-4 p-2 bg-gray-800 rounded text-xs overflow-auto max-h-40">
             <pre>{JSON.stringify(debugInfo, null, 2)}</pre>
           </div>
         )}

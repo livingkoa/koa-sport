@@ -10,7 +10,10 @@ const EmailSchema = z.object({
 type SubscribeResult = {
   success: boolean
   message: string
-  debug?: any
+  status?: number
+  testEmail?: string
+  response?: any
+  requestBody?: any
 }
 
 export async function subscribeToKlaviyoList(formData: FormData): Promise<SubscribeResult> {
@@ -33,6 +36,13 @@ export async function subscribeToKlaviyoList(formData: FormData): Promise<Subscr
     const apiKey = process.env.KLAVIYO_API_KEY
     const listId = process.env.KLAVIYO_LIST_ID
 
+    console.log("Environment variables check:", {
+      hasApiKey: !!apiKey,
+      hasListId: !!listId,
+      apiKeyLength: apiKey ? apiKey.length : 0,
+      listIdLength: listId ? listId.length : 0,
+    })
+
     if (!apiKey || !listId) {
       console.error("Missing Klaviyo API key or list ID")
       return {
@@ -41,10 +51,71 @@ export async function subscribeToKlaviyoList(formData: FormData): Promise<Subscr
       }
     }
 
-    // Using the current Klaviyo API (2023-02-22)
+    // Use the v2 API which is more reliable for simple subscriptions
+    const url = `https://a.klaviyo.com/api/v2/list/${listId}/subscribe`
+
+    const data = {
+      profiles: [{ email }],
+      api_key: apiKey,
+    }
+
+    console.log("Sending request to Klaviyo v2 API:", url)
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+    })
+
+    console.log("Klaviyo response status:", response.status)
+
+    // For debugging
+    let responseText = ""
+    try {
+      responseText = await response.text()
+      console.log("Klaviyo response body:", responseText)
+    } catch (e) {
+      console.log("Could not get response text:", e)
+    }
+
+    if (!response.ok) {
+      console.error("Klaviyo API error:", responseText)
+
+      // If we get a 401 with the v2 API, try the newer API as fallback
+      if (response.status === 401) {
+        console.log("Trying newer Klaviyo API as fallback...")
+        return await subscribeWithNewerApi(email, apiKey, listId)
+      }
+
+      return {
+        success: false,
+        message: "Failed to subscribe. Please try again later.",
+        status: response.status,
+        testEmail: email,
+        response: responseText ? JSON.parse(responseText) : null,
+      }
+    }
+
+    return {
+      success: true,
+      message: "Thank you for subscribing!",
+    }
+  } catch (error) {
+    console.error("Error subscribing to Klaviyo:", error)
+    return {
+      success: false,
+      message: "An unexpected error occurred. Please try again later.",
+    }
+  }
+}
+
+// Helper function to try the newer Klaviyo API
+async function subscribeWithNewerApi(email: string, apiKey: string, listId: string): Promise<SubscribeResult> {
+  try {
     const url = "https://a.klaviyo.com/api/profile-subscription-bulk-create-jobs"
 
-    // Prepare the request body according to the new API format
     const requestBody = {
       data: {
         type: "profile-subscription-bulk-create-job",
@@ -64,7 +135,8 @@ export async function subscribeToKlaviyoList(formData: FormData): Promise<Subscr
       },
     }
 
-    console.log("Sending request to Klaviyo API v2023-02-22", JSON.stringify(requestBody, null, 2))
+    console.log("Sending request to newer Klaviyo API:", url)
+    console.log("Request body:", JSON.stringify(requestBody))
 
     const response = await fetch(url, {
       method: "POST",
@@ -77,39 +149,36 @@ export async function subscribeToKlaviyoList(formData: FormData): Promise<Subscr
       body: JSON.stringify(requestBody),
     })
 
-    console.log("Klaviyo response status:", response.status)
+    console.log("Newer API response status:", response.status)
 
-    // Get the response body
-    let responseBody
-    const responseText = await response.text()
+    let responseData
     try {
-      responseBody = JSON.parse(responseText)
-      console.log("Klaviyo response body:", responseBody)
+      responseData = await response.json()
+      console.log("Newer API response:", responseData)
     } catch (e) {
-      console.log("Response is not JSON:", responseText)
-      responseBody = responseText
+      console.log("Could not parse JSON response:", e)
     }
 
     if (!response.ok) {
-      console.error("Klaviyo API error:", responseBody)
       return {
         success: false,
         message: "Failed to subscribe. Please try again later.",
-        debug: responseBody,
+        status: response.status,
+        testEmail: email,
+        response: responseData,
+        requestBody,
       }
     }
 
     return {
       success: true,
       message: "Thank you for subscribing!",
-      debug: responseBody,
     }
   } catch (error) {
-    console.error("Error subscribing to Klaviyo:", error)
+    console.error("Error with newer Klaviyo API:", error)
     return {
       success: false,
       message: "An unexpected error occurred. Please try again later.",
-      debug: error instanceof Error ? error.message : String(error),
     }
   }
 }
